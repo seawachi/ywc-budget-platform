@@ -2,10 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { extractReceiptWithGemini, simulateOcrFallback } from "@/lib/gemini";
 
 const ALLOWED_STORAGE_HOSTS = [
+  "ywc-budget-platform.vercel.app",
   "knjufluvpzrtzfhxhyux.supabase.co",
   "localhost",
   "127.0.0.1",
 ];
+
+function isAllowedHost(hostname: string): boolean {
+  if (ALLOWED_STORAGE_HOSTS.includes(hostname)) return true;
+  if (hostname.endsWith(".supabase.co")) return true;
+  if (hostname.endsWith(".vercel.app")) return true;
+  return false;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,7 +39,7 @@ export async function POST(req: NextRequest) {
     if (imageBase64.startsWith("http://") || imageBase64.startsWith("https://")) {
       try {
         const parsedUrl = new URL(imageBase64);
-        if (!ALLOWED_STORAGE_HOSTS.includes(parsedUrl.hostname)) {
+        if (!isAllowedHost(parsedUrl.hostname)) {
           return NextResponse.json(
             { error: "Remote image host not permitted for OCR processing" },
             { status: 403 }

@@ -17,6 +17,11 @@ const nextConfig = {
   experimental: {
     serverActions: {
       bodySizeLimit: "2mb",
+      allowedOrigins: [
+        "ywc-budget-platform.vercel.app",
+        "*.vercel.app",
+        "localhost:3000",
+      ],
     },
   },
 };
