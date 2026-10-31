@@ -235,7 +235,7 @@ export function ReceiptDropzone({ onImageSelected, onRemoteUrlReady, isLoading }
                   <span>กำลังสแกน: {elapsedSec}s</span>
                 </span>
                 <span className="text-slate-400">
-                  Timeout จำกัดเวลา: 20s
+                  Timeout จำกัดเวลา: 35s
                 </span>
               </div>
             </div>

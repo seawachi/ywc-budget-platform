@@ -74,10 +74,12 @@ export async function extractReceiptWithGemini(
 ): Promise<ExtractedReceiptData> {
   const apiKey = process.env.GEMINI_API_KEY;
 
-  // If no Gemini key is provided, provide smart fallback extraction
-  if (!apiKey || apiKey === "your-gemini-api-key") {
+  // If no Gemini key is provided or is placeholder, provide smart fallback extraction
+  if (!apiKey || apiKey === "your-gemini-api-key" || apiKey.trim() === "") {
     console.log("No GEMINI_API_KEY detected. Using intelligent simulated OCR parser.");
-    return simulateOcrFallback(imageBase64);
+    const fallback = simulateOcrFallback(imageBase64);
+    fallback.fallbackNotice = "ยังไม่ได้ระบุ GEMINI_API_KEY ใน Environment ระบบจึงสกัดข้อมูลจำลองสำหรับการทดสอบ";
+    return fallback;
   }
 
   try {
@@ -121,13 +123,18 @@ Notes:
 Return ONLY valid JSON without markdown fences.`;
 
     const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, "");
-    const candidateModels = ["gemini-3.5-flash", "gemini-3.8-flash", "gemini-flash-latest"];
+    // Realistic timeout allocation for multimodal receipt OCR:
+    // Complex receipt images with multiple Thai line items typically take 7-15s to parse.
+    const candidateConfigs = [
+      { model: "gemini-2.5-flash", timeoutMs: 18000 },
+      { model: "gemini-1.5-flash", timeoutMs: 12000 },
+    ];
     let lastError: any = null;
 
-    for (const model of candidateModels) {
+    for (const config of candidateConfigs) {
       try {
         const generatePromise = ai.models.generateContent({
-          model,
+          model: config.model,
           contents: [
             {
               role: "user",
@@ -144,11 +151,10 @@ Return ONLY valid JSON without markdown fences.`;
           ],
         });
 
-        // 10s strict timeout per candidate model call
         const response = await withTimeout(
           generatePromise,
-          10000,
-          `Gemini OCR model ${model} timed out after 10s`
+          config.timeoutMs,
+          `Gemini OCR model ${config.model} timed out after ${config.timeoutMs / 1000}s`
         );
 
         const text = response.text || "";
@@ -157,14 +163,17 @@ Return ONLY valid JSON without markdown fences.`;
         return reconcileVatItems(parsed);
       } catch (err: any) {
         lastError = err;
-        console.warn(`Gemini model ${model} attempt failed, trying next candidate:`, err?.message || err);
+        console.warn(`Gemini model ${config.model} attempt failed:`, err?.message || err);
       }
     }
 
     throw lastError || new Error("All Gemini OCR candidate models failed or timed out");
-  } catch (error) {
-    console.error("Gemini OCR error or timeout, falling back to smart parser:", error);
-    return simulateOcrFallback(imageBase64);
+  } catch (error: any) {
+    const errorMsg = error?.message || String(error);
+    console.error("Gemini OCR error or timeout, falling back to smart parser:", errorMsg);
+    const fallback = simulateOcrFallback(imageBase64);
+    fallback.fallbackNotice = `ใช้ข้อมูลจำลองชั่วคราวเนื่องจาก Gemini API ไม่ตอบสนอง (${errorMsg.slice(0, 100)})`;
+    return fallback;
   }
 }
 

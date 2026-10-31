@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractReceiptWithGemini, simulateOcrFallback } from "@/lib/gemini";
 
+// Allow up to 60s execution time for AI Multimodal OCR on Vercel
+export const maxDuration = 60;
+
 const ALLOWED_STORAGE_HOSTS = [
   "ywc-budget-platform.vercel.app",
   "knjufluvpzrtzfhxhyux.supabase.co",

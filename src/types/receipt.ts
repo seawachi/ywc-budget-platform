@@ -20,6 +20,7 @@ export interface ExtractedReceiptData {
   docType: DocType;
   receiptTotal: number;
   vatAmount?: number;
+  fallbackNotice?: string;
   items: Array<{
     name: string;
     quantity: number;

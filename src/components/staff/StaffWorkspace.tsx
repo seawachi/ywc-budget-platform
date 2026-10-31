@@ -105,9 +105,9 @@ export function StaffWorkspace({ user, claims, departments }: StaffWorkspaceProp
     setErrorMsg("");
     setSuccessBanner(false);
 
-    // Strict 20-second timeout limit for AI extraction
+    // Strict 35-second timeout limit for AI extraction
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    const timeoutId = setTimeout(() => controller.abort(), 35000);
 
     try {
       const res = await fetch("/api/ocr", {
@@ -122,7 +122,12 @@ export function StaffWorkspace({ user, claims, departments }: StaffWorkspaceProp
 
       clearTimeout(timeoutId);
 
-      if (!res.ok) throw new Error("OCR Processing failed");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(
+          errorData?.details || errorData?.error || `HTTP ${res.status}: การประมวลผล OCR ล้มเหลว`
+        );
+      }
 
       const data = await res.json();
 
@@ -131,6 +136,10 @@ export function StaffWorkspace({ user, claims, departments }: StaffWorkspaceProp
       setDocType(data.docType || "TAX_INVOICE");
       setReceiptTotal(data.receiptTotal || 0);
       if (data.expenseDate) setExpenseDate(data.expenseDate);
+
+      if (data.fallbackNotice) {
+        setErrorMsg(`⚠️ แจ้งเตือน: ${data.fallbackNotice}`);
+      }
 
       if (data.items && data.items.length > 0) {
         setItems(
@@ -148,11 +157,15 @@ export function StaffWorkspace({ user, claims, departments }: StaffWorkspaceProp
       setShowUploadPad(false); // Hide upload pad once scan is done!
     } catch (err: any) {
       clearTimeout(timeoutId);
-      console.error(err);
+      console.error("OCR Error details:", err);
       if (err.name === "AbortError") {
-        setErrorMsg("การสแกนด้วย AI ใช้เวลานานเกินกำหนด (Timeout 20s) กรุณากรอกรายการด้วยตนเอง หรือลองใหม่อีกครั้ง");
+        setErrorMsg(
+          "การสแกนด้วย AI ใช้เวลานานเกินกำหนด (Timeout 35s) — สาเหตุ: Google Gemini API หรือเครือข่ายใช้เวลาตอบสนองนานเกินไป (อาจเกิดจากขนาดภาพใหญ่ หรือคีย์โควต้าเต็ม) กรุณากรอกรายการด้วยตนเอง หรือลองใหม่อีกครั้ง"
+        );
       } else {
-        setErrorMsg("ไม่สามารถสแกนบิลด้วย AI ได้ กรุณากรอกรายการด้วยตนเอง");
+        setErrorMsg(
+          `ไม่สามารถสแกนบิลด้วย AI ได้ — สาเหตุ: ${err.message || "เกิดข้อผิดพลาดในการเชื่อมต่อ"} กรุณากรอกรายการด้วยตนเอง`
+        );
       }
       setHasScanned(true);
       setShowUploadPad(true); // Keep upload pad open on error

@@ -60,9 +60,9 @@ export default function NewClaimPage() {
     setIsScanning(true);
     setErrorMsg("");
 
-    // Strict 20-second timeout limit for AI extraction
+    // Strict 35-second timeout limit for AI extraction
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    const timeoutId = setTimeout(() => controller.abort(), 35000);
 
     try {
       const res = await fetch("/api/ocr", {
@@ -77,7 +77,12 @@ export default function NewClaimPage() {
 
       clearTimeout(timeoutId);
 
-      if (!res.ok) throw new Error("OCR Processing failed");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(
+          errorData?.details || errorData?.error || `HTTP ${res.status}: การประมวลผล OCR ล้มเหลว`
+        );
+      }
 
       const data = await res.json();
 
@@ -86,6 +91,10 @@ export default function NewClaimPage() {
       setDocType(data.docType || "TAX_INVOICE");
       setReceiptTotal(data.receiptTotal || 0);
       if (data.expenseDate) setExpenseDate(data.expenseDate);
+
+      if (data.fallbackNotice) {
+        setErrorMsg(`⚠️ แจ้งเตือน: ${data.fallbackNotice}`);
+      }
 
       // Populate items
       if (data.items && data.items.length > 0) {
@@ -103,11 +112,15 @@ export default function NewClaimPage() {
       setShowUploadPad(false); // Auto-hide upload pad once scan is done!
     } catch (err: any) {
       clearTimeout(timeoutId);
-      console.error(err);
+      console.error("AI OCR error:", err);
       if (err.name === "AbortError") {
-        setErrorMsg("การสแกนด้วย AI ใช้เวลานานเกินกำหนด (Timeout 20s) กรุณากรอกรายการด้วยตนเอง หรือลองใหม่อีกครั้ง");
+        setErrorMsg(
+          "การสแกนด้วย AI ใช้เวลานานเกินกำหนด (Timeout 35s) — สาเหตุ: Google Gemini API หรือเครือข่ายใช้เวลาตอบสนองนานเกินไป (อาจเกิดจากขนาดภาพใหญ่ หรือคีย์โควต้าเต็ม) กรุณากรอกรายการด้วยตนเอง หรือลองใหม่อีกครั้ง"
+        );
       } else {
-        setErrorMsg("ไม่สามารถสแกนบิลด้วย AI ได้ กรุณากรอกรายการด้วยตนเอง");
+        setErrorMsg(
+          `ไม่สามารถสแกนบิลด้วย AI ได้ — สาเหตุ: ${err.message || "เกิดข้อผิดพลาดในการประมวลผล"} กรุณากรอกรายการด้วยตนเอง`
+        );
       }
       setShowUploadPad(true); // Keep upload pad open on error
     } finally {
